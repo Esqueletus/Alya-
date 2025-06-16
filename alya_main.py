@@ -4,6 +4,19 @@ import asyncio
 from datetime import datetime
 from alya_memoria import guardar_memoria, contexto_relacionado
 from alya_autoreparacion import aplicar_mejora, analizar_codigo_con_groq
+from alya_backup import crear_backup_local, subir_backup_github
+import os
+
+ALYA_FILENAME = os.path.abspath(__file__)
+
+# En el bloque donde aplicas la mejora:
+
+# 1. Crear backup local
+backup_path = crear_backup_local(ALYA_FILENAME)
+
+# 2. Subir backup a GitHub
+await asyncio.to_thread(subir_backup_github, backup_path)
+
 
 # Variables de entorno necesarias
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
