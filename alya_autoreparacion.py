@@ -2,6 +2,49 @@ import os
 import shutil
 import datetime
 import ast
+import aiohttp
+from alya_memoria import guardar_memoria_larga
+
+async def analizar_codigo_con_groq(codigo, system_prompt, api_key):
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    prompt = f"""Eres una IA que puede autoreprogramarse. Analiza el siguiente código de un bot de Discord en Python.
+Evalúa si:
+- Tiene errores
+- Es seguro
+- Mejora funciones como memoria, autoreparación o conversación
+
+Responde SÓLO con:
+- ✅ Si es seguro y mejora el código
+- ⚠️ Si es correcto pero no mejora
+- ❌ Si tiene errores o es peligroso
+
+---CÓDIGO---
+{codigo}
+---FIN---
+"""
+
+    data = {
+        "model": "llama3-8b-8192",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data) as resp:
+            try:
+                res = await resp.json()
+                texto = res["choices"][0]["message"]["content"]
+                guardar_memoria_larga("assistant", f"Groq analizó código y respondió: {texto}")
+                return texto.strip()
+            except Exception as e:
+                return f"❌ Error analizando código: {e}"
+
 
 # Validar que sea código Python válido
 def codigo_es_valido(codigo: str) -> bool:
