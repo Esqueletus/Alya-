@@ -4,12 +4,12 @@ from datetime import datetime, timezone
 
 MEMORIA_ARCHIVO = "alya_memoria_larga.jsonl"
 
-# Asegurar que el archivo exista
+# Crear archivo si no existe
 if not os.path.exists(MEMORIA_ARCHIVO):
     with open(MEMORIA_ARCHIVO, "w", encoding="utf-8") as f:
         pass
 
-# Guardar entrada en memoria larga
+# Guardar entrada nueva
 def guardar_memoria_larga(role, content):
     entrada = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -19,7 +19,18 @@ def guardar_memoria_larga(role, content):
     with open(MEMORIA_ARCHIVO, "a", encoding="utf-8") as f:
         f.write(json.dumps(entrada, ensure_ascii=False) + "\n")
 
-# Leer toda la memoria larga (útil para debug o aprendizaje futuro)
+# Leer memoria completa
 def leer_memoria_larga():
     with open(MEMORIA_ARCHIVO, "r", encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
+
+# Buscar dentro de la memoria larga (retorna hasta 5 coincidencias)
+def buscar_en_memoria(query, max_resultados=5):
+    memoria = leer_memoria_larga()
+    resultados = []
+    for entrada in memoria:
+        if query.lower() in entrada["content"].lower():
+            resultados.append(entrada)
+            if len(resultados) >= max_resultados:
+                break
+    return resultados
