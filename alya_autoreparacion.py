@@ -1,6 +1,20 @@
 import os
 import shutil
 import datetime
+import ast
+
+# Validar que sea código Python válido
+def codigo_es_valido(codigo: str) -> bool:
+    try:
+        ast.parse(codigo)
+        return True
+    except SyntaxError:
+        return False
+
+# Revisar si mejora cosas importantes (por ejemplo, si contiene memoria o respuesta)
+def contiene_funciones_utiles(codigo: str) -> bool:
+    funciones_relevantes = ["on_message", "get_groq_reply", "guardar_memoria"]
+    return any(f in codigo for f in funciones_relevantes)
 
 ARCHIVO_PRINCIPAL = "alya_main.py"
 BACKUP_DIR = "reparaciones_backup"
