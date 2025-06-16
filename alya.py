@@ -3,6 +3,7 @@ import os
 import aiohttp
 import asyncio
 import json
+from alya_memoria import guardar_memoria_larga
 from datetime import datetime, timezone
 
 # Variables de entorno
