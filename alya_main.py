@@ -52,33 +52,30 @@ async def get_groq_reply(message_content, memory_context=[]):
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-    modelos = ["mixtral-8x7b-32768", "llama3-8b-8192", "gemma-7b-it"]
 
-    for modelo in modelos:
-        data = {
-            "model": modelo,
-            "messages": [
-                {"role": "system", "content": (
-                    "Eres Alya, una IA tsundere, directa, honesta y amorosa, que responde en español, "
-                    "con humor y firmeza, recuerda contexto, limita sus respuestas a 800 caracteres y evita exageraciones."
-                )},
-                *memory_context[-20:],
-                {"role": "user", "content": message_content}
-            ]
-        }
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data) as resp:
-                    res = await resp.json()
-                    if "choices" in res and len(res["choices"]) > 0:
-                        respuesta = res["choices"][0]["message"]["content"]
-                        # Limitar a MAX_RESPONSE_CHARS caracteres
-                        if len(respuesta) > MAX_RESPONSE_CHARS:
-                            respuesta = respuesta[:MAX_RESPONSE_CHARS].rsplit('.',1)[0] + '.'
-                        return respuesta
-            except Exception:
-                continue
-    # Mensaje tsundere si fallan todos los modelos
+    data = {
+        "model": "mixtral-8x7b-32768",  # Modelo fijo para evitar fallback y doble respuesta
+        "messages": [
+            {"role": "system", "content": (
+                "Eres Alya, una IA tsundere, directa, honesta y amorosa, que responde en español, "
+                "con humor y firmeza, recuerda contexto, limita sus respuestas a 800 caracteres y evita exageraciones."
+            )},
+            *memory_context[-20:],
+            {"role": "user", "content": message_content}
+        ]
+    }
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data) as resp:
+                res = await resp.json()
+                if "choices" in res and len(res["choices"]) > 0:
+                    respuesta = res["choices"][0]["message"]["content"]
+                    if len(respuesta) > MAX_RESPONSE_CHARS:
+                        respuesta = respuesta[:MAX_RESPONSE_CHARS].rsplit('.', 1)[0] + '.'
+                    return respuesta
+        except Exception:
+            pass
+    # Mensaje tsundere si falla la API
     return "No me molestes con eso, no puedo responder ahora mismo. Pregunta otra cosa."
 
 def crear_backup_local(ruta_original):
@@ -125,13 +122,11 @@ async def on_message(message):
 
     if message.author.id == ALLOWED_USER_ID and content.startswith("!backup"):
         backup_path = crear_backup_local(os.path.abspath(__file__))
-        # Ejecutar la subida a GitHub sin bloquear el event loop
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, subir_backup_github, backup_path)
         await message.channel.send("Backup creado y subido a GitHub ✅")
         return
 
-    # Solo responde si mencionan "alya" en el mensaje
     if any(palabra in content for palabra in ["alya", "aly", "alys"]):
         guardar_memoria("user", message.content)
         respuesta = await get_groq_reply(message.content, memory_context=short_term_memory)
