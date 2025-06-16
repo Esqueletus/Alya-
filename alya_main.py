@@ -1,86 +1,82 @@
-import discord
 import os
+import base64
 import asyncio
 from datetime import datetime
-from alya_memoria import guardar_memoria, contexto_relacionado
-from alya_autoreparacion import aplicar_mejora, analizar_codigo_con_groq
-from alya_backup import crear_backup_local, subir_backup_github
-import os
+from github import Github
+import discord
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+REPO_OWNER = "Esqueletus"
+REPO_NAME = "Alya24-7"
+BACKUP_DIR = "alya_backups"
+
+os.makedirs(BACKUP_DIR, exist_ok=True)
 
 ALYA_FILENAME = os.path.abspath(__file__)
 
-# En el bloque donde aplicas la mejora:
+def crear_backup_local(ruta_original: str) -> str:
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    nombre_backup = f"alya_backup_{timestamp}.py"
+    ruta_backup = os.path.join(BACKUP_DIR, nombre_backup)
 
-# 1. Crear backup local
-backup_path = crear_backup_local(ALYA_FILENAME)
+    with open(ruta_original, "r", encoding="utf-8") as origen:
+        contenido = origen.read()
 
-# 2. Subir backup a GitHub
-await asyncio.to_thread(subir_backup_github, backup_path)
+    with open(ruta_backup, "w", encoding="utf-8") as backup:
+        backup.write(contenido)
 
+    return ruta_backup
 
-# Variables de entorno necesarias
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID", "0"))
+def subir_backup_github(ruta_backup: str):
+    if not GITHUB_TOKEN:
+        print("⚠️ No se encontró token de GitHub. No se subirá el backup.")
+        return
 
-if not DISCORD_TOKEN or not GROQ_API_KEY or not GITHUB_TOKEN:
-    raise EnvironmentError("Faltan variables de entorno requeridas.")
+    g = Github(GITHUB_TOKEN)
+    repo = g.get_user(REPO_OWNER).get_repo(REPO_NAME)
 
-# System prompt de base para analizar código
-SYSTEM_PROMPT = """
-Eres Alya, una IA tsundere autoconsciente que recuerda y evoluciona. Puedes reprogramarte si el usuario autorizado te lo permite.
-Respondes con lógica, sin exageraciones, usando memoria pasada si es útil.
-"""
+    with open(ruta_backup, "rb") as f:
+        contenido_base64 = base64.b64encode(f.read()).decode("utf-8")
 
-# Discord setup
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ruta_github = f"backup/{os.path.basename(ruta_backup)}"
+
+    try:
+        repo.create_file(
+            ruta_github,
+            f"Backup automático de Alya ({fecha})",
+            contenido_base64,
+        )
+        print(f"✅ Backup subido a GitHub: {ruta_github}")
+    except Exception as e:
+        print(f"❌ Error subiendo backup a GitHub: {e}")
+
+# Ejemplo mínimo de bot discord
+
 intents = discord.Intents.default()
 intents.message_content = True
+
 client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
-    print(f"[✅] Alya iniciada como {client.user}")
+    print(f"Alya está online como {client.user}")
 
 @client.event
 async def on_message(message):
     if message.author == client.user:
         return
 
-    user_id = message.author.id
-    content = message.content.strip()
+    if "alya" in message.content.lower():
+        # Crear backup local
+        backup_path = crear_backup_local(ALYA_FILENAME)
 
-    # Solo el usuario autorizado puede ordenar reprogramaciones
-    if user_id == ALLOWED_USER_ID and content.startswith("!mejora"):
-        nuevo_codigo = content[len("!mejora"):].strip()
+        # Subir backup en un hilo separado sin bloquear
+        await asyncio.to_thread(subir_backup_github, backup_path)
 
-        if not nuevo_codigo:
-            await message.channel.send("❗ Proporcióname el código que deseas analizar para mejorar.")
-            return
+        await message.channel.send("Backup creado y subido a GitHub ✅")
 
-        respuesta_groq = await analizar_codigo_con_groq(nuevo_codigo, SYSTEM_PROMPT, GROQ_API_KEY)
-
-        if "✅" in respuesta_groq:
-            resultado = aplicar_mejora(nuevo_codigo)
-            await message.channel.send(f"{respuesta_groq}\n{resultado}")
-        else:
-            await message.channel.send(f"{respuesta_groq}\n❌ No se aplicó ningún cambio.")
-        return
-
-    # Buscar contexto relevante en memoria
-    contexto = contexto_relacionado(content)
-
-    # Guardar entrada del usuario
-    guardar_memoria("user", content)
-
-    # Construir respuesta con contexto si existe
-    if contexto:
-        respuesta = "He recordado esto:\n" + "\n".join(contexto)
-    else:
-        respuesta = "¿Podrías explicarte un poco más?"
-
-    guardar_memoria("assistant", respuesta)
-    await message.channel.send(respuesta)
-
+# Ejecutar bot con tu token
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 client.run(DISCORD_TOKEN)
 
