@@ -33,4 +33,15 @@ def buscar_en_memoria(query, max_resultados=5):
             resultados.append(entrada)
             if len(resultados) >= max_resultados:
                 break
-    return resultados
+# Buscar memoria relevante automáticamente (para IA)
+def contexto_relacionado(query, max_resultados=3):
+    memoria = leer_memoria_larga()
+    resultados = []
+    for entrada in reversed(memoria):
+        if entrada["role"] == "user" and query.lower() in entrada["content"].lower():
+            resultados.append(f'{entrada["role"]}: {entrada["content"]}')
+        if entrada["role"] == "assistant" and query.lower() in entrada["content"].lower():
+            resultados.append(f'{entrada["role"]}: {entrada["content"]}')
+        if len(resultados) >= max_resultados:
+            break
+    return resultados[::-1]  # Más antiguo arriba
